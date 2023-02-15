@@ -4,5 +4,5 @@ tensorflow==2.7.0
 tornado~=6.2
 requests~=2.28.1
 cloudevents~=1.8.0
-bdilab-detect
+bdilab-detect==0.1.0.dev1
 alibi-detect
