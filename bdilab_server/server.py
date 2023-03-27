@@ -17,6 +17,7 @@ from cloudevents.sdk import marshaller
 from cloudevents.sdk.event import v1
 from bdilab_server.protocols import Protocol
 import uuid
+# from bdilab_server.constants import DRIFT_BATCH_SIZE, ALPHA
 
 DEFAULT_HTTP_PORT = 8080
 CESERVER_LOGLEVEL = os.environ.get("CESERVER_LOGLEVEL", "INFO").upper()
@@ -28,6 +29,8 @@ DEFAULT_LABELS = {
     )
 }
 
+DRIFT_BATCH_SIZE = 100
+ALPHA = 0.05
 
 class CEServer(object):
     def __init__(
@@ -60,6 +63,7 @@ class CEServer(object):
         self.event_type = event_type
         self.event_source = event_source
 
+
     def create_application(self):
         return tornado.web.Application(
             [
@@ -75,6 +79,13 @@ class CEServer(object):
                         event_source=self.event_source,
                         # seldon_metrics=self.seldon_metrics,
                     ),
+                ),
+                (
+                    r"/updateParams",
+                    UpdateParamsHandler,
+                    dict(
+                        model=self.registered_model
+                    )
                 ),
                 # Protocol Discovery API that returns the serving protocol supported by this server.
                 (r"/protocol", ProtocolHandler, dict(protocol=self.protocol)),
@@ -164,6 +175,38 @@ def sendCloudEvent(event: v1.Event, url: str):
     response.raise_for_status()
 
 
+class UpdateParamsHandler(tornado.web.RequestHandler):
+
+    def initialize(
+        self,
+        model: CEModel,
+    ):
+        self.model = model
+
+    def put(self):
+        if not self.model.ready:
+            self.model.load()
+        try:
+            body = json.loads(self.request.body)
+        except json.decoder.JSONDecodeError as e:
+            raise tornado.web.HTTPError(
+                status_code=HTTPStatus.BAD_REQUEST,
+                reason="Unrecognized request format: %s" % e,
+            )
+        if body.get("drift_batch_size"):
+            # global DRIFT_BATCH_SIZE
+            # DRIFT_BATCH_SIZE = body["drift_batch_size"]
+            self.model.drift_batch_size = body["drift_batch_size"]
+        if body.get("alpha"):
+            # global ALPHA
+            # ALPHA = body["alpha"]
+            d_model = getattr(self.model, "model")
+            if hasattr(d_model, "_detector"):
+                d_model._detector.alpha = body["alpha"]
+            else:
+                d_model.alpha = body["alpha"]
+
+
 class EventHandler(tornado.web.RequestHandler):
     def initialize(
         self,
@@ -202,6 +245,19 @@ class EventHandler(tornado.web.RequestHandler):
         """
         if not self.model.ready:
             self.model.load()
+
+        # # 更新drift_batch_size
+        # self.model.drift_batch_size = DRIFT_BATCH_SIZE
+        #
+        # # 更新alpha参数
+        # d_model = getattr(self.model, "model")
+        # if hasattr(d_model, "_detector"):
+        #     d_model._detector.alpha = ALPHA
+        # else:
+        #     d_model.alpha = ALPHA
+
+        # logging.info(self.model.drift_batch_size)
+        # logging.info(getattr(self.model, "model").alpha)
 
         try:
             body = json.loads(self.request.body)
@@ -243,7 +299,6 @@ class EventHandler(tornado.web.RequestHandler):
         #         self.seldon_metrics.update(runtime_metrics, self.event_type)
         #     else:
         #         logging.error("Metrics returned are invalid: " + str(runtime_metrics))
-
         if response.data is not None:
 
             # Create event from response if reply_url is active

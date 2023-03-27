@@ -7,10 +7,8 @@ from bdilab_server.cm_model import CustomMetricsModel
 from bdilab_server.od_model import AlibiDetectOutlierModel
 from bdilab_server.ad_model import AlibiDetectAdversarialDetectionModel
 from bdilab_server.cd_model import BdilabDetectConceptDriftModel
-from bdilab_server.server import CEServer
 from bdilab_server.protocols import Protocol
-from bdilab_server.server import DEFAULT_HTTP_PORT
-# from bdilab_detect.utils.saving import Data
+from bdilab_server.server import DEFAULT_HTTP_PORT, CEServer
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -97,8 +95,15 @@ parser_drift.add_argument(
     "--drift_batch_size",
     type=int,
     action=GroupedAction,
-    dest="alibi.drift_batch_size",
+    dest="bdilab.drift_batch_size",
     default=argparse.SUPPRESS,
+)
+parser_drift.add_argument(
+    "--p_val",
+    type=float,
+    action=GroupedAction,
+    dest="bdilab.p_val",
+    default=argparse.SUPPRESS
 )
 
 parser_adversarial = subparsers.add_parser(str(BdilabDetectMethod.adversarial_detector))
@@ -108,8 +113,8 @@ parser_metrics = subparsers.add_parser(str(BdilabDetectMethod.metrics_server))
 args, _ = parser.parse_known_args()
 
 argdDict = vars(args).copy()
-if "alibi" in argdDict:
-    extra = vars(args.alibi)
+if "bdilab" in argdDict:
+    extra = vars(args.bdilab)
 else:
     extra = {}
 logging.info("Extra args: %s", extra)

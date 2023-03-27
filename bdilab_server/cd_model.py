@@ -5,12 +5,14 @@ import numpy as np
 import os
 from .numpy_encoder import NumpyEncoder
 from bdilab_server.base import BdilabDetectModel, ModelResponse
-# from bdilab_detect.utils.saving import load_detector, Data
 from bdilab_detect.utils.saving import load_detector
 from bdilab_server.constants import ENV_DRIFT_TYPE_FEATURE
 from bdilab_server.base.storage import download_model
+from bdilab_server.base import Data
+
 
 DRIFT_TYPE_FEATURE = os.environ.get(ENV_DRIFT_TYPE_FEATURE, "").upper() == "TRUE"
+
 
 def _append_drift_metrcs(metrics, drift, name):
     metric_found = drift.get(name)
@@ -23,7 +25,7 @@ def _append_drift_metrcs(metrics, drift, name):
         for i, instance in enumerate(metric_found):
             metrics.append(
                 {
-                    "key": f"seldon_metric_drift_{name}",
+                    "key": f"metric_drift_{name}",
                     "value": instance,
                     "type": "GAUGE",
                     "tags": {"index": str(i)},
@@ -38,9 +40,9 @@ class BdilabDetectConceptDriftModel(
         self,
         name: str,
         storage_uri: str,
-        # model: Optional[Data] = None,
-        model=None,
+        model: Optional[Data] = None,
         drift_batch_size: int = 1000,
+        p_val: float = 0.05
     ):
         """
         Outlier Detection / Concept Drift Model
@@ -54,13 +56,13 @@ class BdilabDetectConceptDriftModel(
         drift_batch_size
              The batch size to fill before checking for drift
         model
-             Alibi detect model
+             Bdilab detect model
         """
         super().__init__(name, storage_uri, model)
-        self.drift_batch_size = drift_batch_size
         self.batch: Optional[np.ndarray] = None
-        # self.model: Data = model
-        self.model = model
+        self.model: Data = model
+        self.drift_batch_size = drift_batch_size
+        self.p_val = p_val
 
     def load(self):
         """
@@ -68,9 +70,13 @@ class BdilabDetectConceptDriftModel(
 
         """
         model_folder = download_model(self.storage_uri)
-        # self.model: Data = load_detector(model_folder)
-        self.model = load_detector(model_folder)
+        self.model: Data = load_detector(model_folder)
         # self.model = load_detector("bdilab_server/bdilab_detect/saving/test/dill_file/")
+        # 设置超参数 p_val
+        if hasattr(self.model, "_detector"):
+            self.model._detector.alpha = self.p_val
+        else:
+            self.alpha = self.p_val
         self.ready = True
 
     def process_event(self, inputs: Union[List, Dict], headers: Dict) -> Optional[ModelResponse]:
@@ -86,7 +92,7 @@ class BdilabDetectConceptDriftModel(
 
         Returns
         -------
-             Alibi Detect response
+             Bdilab Detect response
 
         """
         logging.info("PROCESSING EVENT.")
@@ -118,9 +124,11 @@ class BdilabDetectConceptDriftModel(
                 cd_preds = self.model.predict(self.batch)
 
             logging.info("Ran drift test")
-            self.batch = None
 
             output = json.loads(json.dumps(cd_preds, cls=NumpyEncoder))
+            # 添加批处理大小
+            output["data"]["drift_batch_size"] = self.batch.shape[0]
+            self.batch = None
 
             metrics: List[Dict] = []
             drift = output.get("data")

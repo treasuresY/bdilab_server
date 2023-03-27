@@ -1,2 +1,2 @@
 from .model import CEModel, ModelResponse
-from .bdilab_model import BdilabDetectModel
+from .bdilab_model import BdilabDetectModel, Data
