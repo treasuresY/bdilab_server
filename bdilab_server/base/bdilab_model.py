@@ -8,8 +8,7 @@ Data = Union[Detector, ConfigurableDetector]
 
 
 class BdilabDetectModel(CEModel):  # pylint:disable=c-extension-no-member
-    # def __init__(self, name: str, storage_uri: str, model: Optional[Data] = None):
-    def __init__(self, name: str, storage_uri: str, model = None):
+    def __init__(self, name: str, storage_uri: str, model: Optional[Data] = None):
         """
         Outlier Detection Model
 

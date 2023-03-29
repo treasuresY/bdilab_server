@@ -26,7 +26,7 @@ requests = ">=2.0.0,<3"
 #[[package]]
 #name = "alibi-detect"
 #version = "0.9.0"
-#description = "Algorithms for outlier detection, concept drift and metrics."
+#description = "Algorithms for outlier detection, concept drift and prometheus_metrics."
 #category = "main"
 #optional = false
 #python-versions = ">=3.7"

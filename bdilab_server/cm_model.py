@@ -94,9 +94,9 @@ class CustomMetricsModel(CEModel):  # pylint:disable=c-extension-no-member
         else:
             truth = inputs["truth"]
 
-        # We automatically add any metrics provided in the incoming request
-        if "metrics" in inputs:
-            metrics.extend(inputs["metrics"])
+        # We automatically add any prometheus_metrics provided in the incoming request
+        if "prometheus_metrics" in inputs:
+            metrics.extend(inputs["prometheus_metrics"])
 
         # If response is provided then we can perform a comparison
         if "response" in inputs:

@@ -8,6 +8,3 @@ HEADER_OUTLIER_TYPE = "Alibi-Detect-Outlier-Type"
 REQUEST_ID_HEADER_NAME = "Ce-Requestid"
 NAMESPACE_HEADER_NAME = "Ce-Namespace"
 
-# 默认值
-DRIFT_BATCH_SIZE = 100
-ALPHA = 0.05

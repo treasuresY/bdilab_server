@@ -16,21 +16,18 @@ from cloudevents.sdk import converters
 from cloudevents.sdk import marshaller
 from cloudevents.sdk.event import v1
 from bdilab_server.protocols import Protocol
+from bdilab_server.prometheus_metrics.metrics import BdilabMetrics, validate_metrics
 import uuid
-# from bdilab_server.constants import DRIFT_BATCH_SIZE, ALPHA
 
 DEFAULT_HTTP_PORT = 8080
 CESERVER_LOGLEVEL = os.environ.get("CESERVER_LOGLEVEL", "INFO").upper()
 logging.basicConfig(level=CESERVER_LOGLEVEL)
 
 DEFAULT_LABELS = {
-    "seldon_deployment_namespace": os.environ.get(
-        "SELDON_DEPLOYMENT_NAMESPACE", "NOT_IMPLEMENTED"
+    "bdilab_deployment_namespace": os.environ.get(
+        "BDILAB_DEPLOYMENT_NAMESPACE", "NOT_IMPLEMENTED"
     )
 }
-
-DRIFT_BATCH_SIZE = 100
-ALPHA = 0.05
 
 class CEServer(object):
     def __init__(
@@ -62,12 +59,14 @@ class CEServer(object):
         self._http_server: Optional[tornado.httpserver.HTTPServer] = None
         self.event_type = event_type
         self.event_source = event_source
-
+        self.bdilab_metrics = BdilabMetrics(
+            extra_default_labels=DEFAULT_LABELS
+        )
 
     def create_application(self):
         return tornado.web.Application(
             [
-                # Outlier detector
+                # detector
                 (
                     r"/",
                     EventHandler,
@@ -77,7 +76,7 @@ class CEServer(object):
                         reply_url=self.reply_url,
                         event_type=self.event_type,
                         event_source=self.event_source,
-                        # seldon_metrics=self.seldon_metrics,
+                        bdilab_metrics=self.bdilab_metrics
                     ),
                 ),
                 (
@@ -89,12 +88,14 @@ class CEServer(object):
                 ),
                 # Protocol Discovery API that returns the serving protocol supported by this server.
                 (r"/protocol", ProtocolHandler, dict(protocol=self.protocol)),
-                # # Prometheus Metrics API that returns metrics for model servers
-                # (
-                #     r"/v1/metrics",
-                #     MetricsHandler,
-                #     dict(seldon_metrics=self.seldon_metrics),
-                # ),
+                # Prometheus Metrics API that returns prometheus_metrics for model servers
+                (
+                    r"/v1/metrics",
+                    MetricsHandler,
+                    dict(
+                        bdilab_metrics=self.bdilab_metrics
+                    ),
+                ),
             ]
         )
 
@@ -194,12 +195,8 @@ class UpdateParamsHandler(tornado.web.RequestHandler):
                 reason="Unrecognized request format: %s" % e,
             )
         if body.get("drift_batch_size"):
-            # global DRIFT_BATCH_SIZE
-            # DRIFT_BATCH_SIZE = body["drift_batch_size"]
             self.model.drift_batch_size = body["drift_batch_size"]
         if body.get("alpha"):
-            # global ALPHA
-            # ALPHA = body["alpha"]
             d_model = getattr(self.model, "model")
             if hasattr(d_model, "_detector"):
                 d_model._detector.alpha = body["alpha"]
@@ -215,6 +212,7 @@ class EventHandler(tornado.web.RequestHandler):
         reply_url: str,
         event_type: str,
         event_source: str,
+        bdilab_metrics: BdilabMetrics
     ):
         """
         Event Handler
@@ -237,6 +235,7 @@ class EventHandler(tornado.web.RequestHandler):
         self.reply_url = reply_url
         self.event_type = event_type
         self.event_source = event_source
+        self.bdilab_metrics = bdilab_metrics
 
     def post(self):
         """
@@ -245,19 +244,6 @@ class EventHandler(tornado.web.RequestHandler):
         """
         if not self.model.ready:
             self.model.load()
-
-        # # 更新drift_batch_size
-        # self.model.drift_batch_size = DRIFT_BATCH_SIZE
-        #
-        # # 更新alpha参数
-        # d_model = getattr(self.model, "model")
-        # if hasattr(d_model, "_detector"):
-        #     d_model._detector.alpha = ALPHA
-        # else:
-        #     d_model.alpha = ALPHA
-
-        # logging.info(self.model.drift_batch_size)
-        # logging.info(getattr(self.model, "model").alpha)
 
         try:
             body = json.loads(self.request.body)
@@ -293,12 +279,12 @@ class EventHandler(tornado.web.RequestHandler):
         if response is None:
             return
 
-        # runtime_metrics = response.metrics
-        # if runtime_metrics is not None:
-        #     if validate_metrics(runtime_metrics):
-        #         self.seldon_metrics.update(runtime_metrics, self.event_type)
-        #     else:
-        #         logging.error("Metrics returned are invalid: " + str(runtime_metrics))
+        runtime_metrics = response.metrics
+        if runtime_metrics is not None:
+            if validate_metrics(runtime_metrics):
+                self.bdilab_metrics.update(runtime_metrics, self.event_type)
+            else:
+                logging.error("Metrics returned are invalid: " + str(runtime_metrics))
         if response.data is not None:
 
             # Create event from response if reply_url is active
@@ -334,11 +320,11 @@ class ProtocolHandler(tornado.web.RequestHandler):
         self.write(str(self.protocol.value))
 
 
-# class MetricsHandler(tornado.web.RequestHandler):
-#     def initialize(self, seldon_metrics: SeldonMetrics):
-#         self.seldon_metrics = seldon_metrics
+class MetricsHandler(tornado.web.RequestHandler):
+    def initialize(self, bdilab_metrics: BdilabMetrics):
+        self.bdilab_metrics = bdilab_metrics
 
-#     def get(self):
-#         metrics, mimetype = self.seldon_metrics.generate_metrics()
-#         self.set_header("Content-Type", mimetype)
-#         self.write(metrics)
+    def get(self):
+        metrics, mimetype = self.bdilab_metrics.generate_metrics()
+        self.set_header("Content-Type", mimetype)
+        self.write(metrics)

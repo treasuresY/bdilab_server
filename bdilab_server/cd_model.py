@@ -25,7 +25,7 @@ def _append_drift_metrcs(metrics, drift, name):
         for i, instance in enumerate(metric_found):
             metrics.append(
                 {
-                    "key": f"metric_drift_{name}",
+                    "key": f"bdilab_metric_drift_{name}",
                     "value": instance,
                     "type": "GAUGE",
                     "tags": {"index": str(i)},

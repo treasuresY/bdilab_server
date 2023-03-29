@@ -136,7 +136,7 @@ class AlibiDetectOutlierModel(CEModel):  # pylint:disable=c-extension-no-member
                 return_instance_score=ret_instance_score,
             )
 
-        # Register metrics
+        # Register prometheus_metrics
         metrics: List[Dict] = []
         _append_outlier_metrcs(metrics, od_preds, "is_outlier")
         _append_outlier_metrcs(metrics, od_preds, "instance_score", is_count=False)
