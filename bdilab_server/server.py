@@ -11,6 +11,7 @@ import tornado.web
 from bdilab_server.base import CEModel, ModelResponse
 from bdilab_server.protocols.request_handler import RequestHandler
 from bdilab_server.protocols.tensorflow_http import TensorflowRequestHandler
+from bdilab_server.protocols.update_params_http import UpdateParamsRequestHandler
 from bdilab_server.protocols.v2 import KFservingV2RequestHandler
 from cloudevents.sdk import converters
 from cloudevents.sdk import marshaller
@@ -18,6 +19,9 @@ from cloudevents.sdk.event import v1
 from bdilab_server.protocols import Protocol
 from bdilab_server.prometheus_metrics.metrics import BdilabMetrics, validate_metrics
 import uuid
+import numpy as np
+import io
+import base64
 
 DEFAULT_HTTP_PORT = 8080
 CESERVER_LOGLEVEL = os.environ.get("CESERVER_LOGLEVEL", "INFO").upper()
@@ -146,6 +150,8 @@ def get_request_handler(protocol, request: Dict) -> RequestHandler:
         return TensorflowRequestHandler(request)
     elif protocol == Protocol.kfserving_http:
         return KFservingV2RequestHandler(request)
+    elif protocol == Protocol.updateparams_http:
+        return UpdateParamsRequestHandler(request)
     else:
         raise Exception(f"Unknown protocol {protocol}")
 
@@ -194,15 +200,38 @@ class UpdateParamsHandler(tornado.web.RequestHandler):
                 status_code=HTTPStatus.BAD_REQUEST,
                 reason="Unrecognized request format: %s" % e,
             )
-        if body.get("drift_batch_size"):
-            self.model.drift_batch_size = body["drift_batch_size"]
-        if body.get("alpha"):
-            d_model = getattr(self.model, "model")
-            if hasattr(d_model, "_detector"):
-                d_model._detector.alpha = body["alpha"]
-            else:
-                d_model.alpha = body["alpha"]
+        # Extract payload from request
+        request_handler: RequestHandler = get_request_handler(
+            Protocol("updateparams.http"), body)
+        request_handler.validate()
+        drift_batch_size, alpha, x_ref = request_handler.extract_request()
 
+        if drift_batch_size:
+            self.model.drift_batch_size = drift_batch_size
+            logging.info("Update drift_batch_size successfully, drift_batch_size=" + str(drift_batch_size))
+        if alpha or x_ref:
+            d_model = getattr(self.model, "model")
+            if hasattr(d_model, "_nested_detector"):
+                detector = getattr(d_model, "_nested_detector")
+            if alpha:
+                if hasattr(detector, "alpha"):
+                    detector.alpha = alpha
+                logging.info("Update alpha successfully, alpha=" + str(detector.alpha))
+            if x_ref:
+                # 将Base64编码字符串解码为字节对象
+                x_ref_bytes = base64.b64decode(x_ref)
+                logging.info(x_ref_bytes)
+                if hasattr(detector, "x_ref"):
+                    buffer = io.BytesIO(x_ref_bytes)
+                    x_ref = np.loadtxt(buffer, delimiter=",")
+                    detector.x_ref = x_ref
+                    logging.info("Update x_ref successfully, x_ref.shape=" + str(detector.x_ref.shape))
+                if hasattr(detector, "X_baseline"):
+                    buffer = io.BytesIO(x_ref_bytes)
+                    X_baseline = np.loadtxt(buffer, delimiter=",")
+                    detector.X_baseline = X_baseline
+                    logging.info("Update x_ref successfully, x_ref.shape=" + str(detector.X_baseline.shape))
+        self.write("update successfully")
 
 class EventHandler(tornado.web.RequestHandler):
     def initialize(
@@ -286,7 +315,6 @@ class EventHandler(tornado.web.RequestHandler):
             else:
                 logging.error("Metrics returned are invalid: " + str(runtime_metrics))
         if response.data is not None:
-
             # Create event from response if reply_url is active
             if not self.reply_url == "":
                 if event.EventID() is None or event.EventID() == "":

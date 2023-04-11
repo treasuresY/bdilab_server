@@ -73,10 +73,10 @@ class BdilabDetectConceptDriftModel(
         self.model: Data = load_detector(model_folder)
         # self.model = load_detector("bdilab_server/bdilab_detect/saving/test/dill_file/")
         # 设置超参数 p_val
-        if hasattr(self.model, "_detector"):
-            self.model._detector.alpha = self.p_val
-        else:
-            self.alpha = self.p_val
+        if hasattr(self.model, "_nested_detector"):
+            detector = getattr(self.model, "_nested_detector")
+            if hasattr(detector, "alpha"):
+                detector.alpha = self.p_val
         self.ready = True
 
     def process_event(self, inputs: Union[List, Dict], headers: Dict) -> Optional[ModelResponse]:

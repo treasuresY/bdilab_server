@@ -139,9 +139,9 @@ if __name__ == "__main__":
         logging.error("Unknown method %s", args.command)
         os._exit(-1)
     CEServer(
-        args.protocol,
-        args.event_type,
-        args.event_source,
+        protocol=args.protocol,
+        event_type=args.event_type,
+        event_source=args.event_source,
         http_port=args.http_port,
         reply_url=args.reply_url,
     ).start(model)
