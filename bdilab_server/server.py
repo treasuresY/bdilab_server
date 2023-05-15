@@ -33,6 +33,7 @@ DEFAULT_LABELS = {
     )
 }
 
+
 class CEServer(object):
     def __init__(
         self,
@@ -208,7 +209,8 @@ class UpdateParamsHandler(tornado.web.RequestHandler):
 
         if drift_batch_size:
             self.model.drift_batch_size = drift_batch_size
-            logging.info("Update drift_batch_size successfully, drift_batch_size=" + str(drift_batch_size))
+            logging.info(
+                "Update drift_batch_size successfully, drift_batch_size=" + str(drift_batch_size))
         if alpha or x_ref:
             d_model = getattr(self.model, "model")
             if hasattr(d_model, "_nested_detector"):
@@ -216,7 +218,8 @@ class UpdateParamsHandler(tornado.web.RequestHandler):
             if alpha:
                 if hasattr(detector, "alpha"):
                     detector.alpha = alpha
-                logging.info("Update alpha successfully, alpha=" + str(detector.alpha))
+                logging.info("Update alpha successfully, alpha=" +
+                             str(detector.alpha))
             if x_ref:
                 # 将Base64编码字符串解码为字节对象
                 x_ref_bytes = base64.b64decode(x_ref)
@@ -225,13 +228,16 @@ class UpdateParamsHandler(tornado.web.RequestHandler):
                     buffer = io.BytesIO(x_ref_bytes)
                     x_ref = np.loadtxt(buffer, delimiter=",")
                     detector.x_ref = x_ref
-                    logging.info("Update x_ref successfully, x_ref.shape=" + str(detector.x_ref.shape))
+                    logging.info(
+                        "Update x_ref successfully, x_ref.shape=" + str(detector.x_ref.shape))
                 if hasattr(detector, "X_baseline"):
                     buffer = io.BytesIO(x_ref_bytes)
                     X_baseline = np.loadtxt(buffer, delimiter=",")
                     detector.X_baseline = X_baseline
-                    logging.info("Update x_ref successfully, x_ref.shape=" + str(detector.X_baseline.shape))
+                    logging.info(
+                        "Update x_ref successfully, x_ref.shape=" + str(detector.X_baseline.shape))
         self.write("update successfully")
+
 
 class EventHandler(tornado.web.RequestHandler):
     def initialize(
@@ -313,7 +319,8 @@ class EventHandler(tornado.web.RequestHandler):
             if validate_metrics(runtime_metrics):
                 self.bdilab_metrics.update(runtime_metrics, self.event_type)
             else:
-                logging.error("Metrics returned are invalid: " + str(runtime_metrics))
+                logging.error("Metrics returned are invalid: " +
+                              str(runtime_metrics))
         if response.data is not None:
             # Create event from response if reply_url is active
             if not self.reply_url == "":

@@ -18,5 +18,5 @@ RUN apt-get update && apt-get install -y libgl1-mesa-glx
 ADD . .
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.mirrors.ustc.edu.cn/simple
 # 因为bdilab-detect项目上传到了Pypi ,清华镜像中没有,因此需要从Pypi拉取;
-RUN pip install bdilab-detect==0.2.6.dev
+RUN pip install bdilab-detect==0.2.7.dev
 ENTRYPOINT ["python", "-m", "bdilab_server"]

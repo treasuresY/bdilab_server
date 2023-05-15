@@ -7,3 +7,4 @@ tensorflow==2.7.0
 bdilab-detect==0.2.7.dev
 alibi-detect~=0.9.0
 protobuf==3.19.5
+prometheus-client==0.16.0
